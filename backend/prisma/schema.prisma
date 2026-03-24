@@ -1,0 +1,309 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== CORE TABLES ====================
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  email     String   @unique
+  password  String
+  name      String
+  phone     String?
+  role      UserRole @default(VOLUNTEER)
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  volunteer     Volunteer?
+  organization  Organization?
+  notifications Notification[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+model Volunteer {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @unique @map("user_id") @db.Uuid
+  city        String?
+  skills      String[] @default([])
+  interests   String[] @default([])
+  bio         String?
+  avatarUrl   String?  @map("avatar_url")
+  totalHours  Float    @default(0) @map("total_hours")
+  completedOpportunities Int @default(0) @map("completed_opportunities")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  applications  Application[]
+  hoursLogs     HoursLog[]
+  earnedBadges  EarnedBadge[]
+  certificates  Certificate[]
+
+  @@map("volunteers")
+}
+
+model Organization {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @unique @map("user_id") @db.Uuid
+  name           String
+  type           OrgType  @default(OTHER)
+  licenseNumber  String?  @map("license_number")
+  description    String?
+  website        String?
+  logoUrl        String?  @map("logo_url")
+  address        String?
+  city           String?
+  isVerified     Boolean  @default(false) @map("is_verified")
+  verificationStatus VerificationStatus @default(PENDING) @map("verification_status")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+
+  @@map("organizations")
+}
+
+// ==================== OPPORTUNITY TABLES ====================
+
+model Opportunity {
+  id                 String   @id @default(uuid()) @db.Uuid
+  organizationId     String   @map("organization_id") @db.Uuid
+  title              String
+  description        String
+  location           String
+  category           String
+  requiredSkills     String[] @default([]) @map("required_skills")
+  requiredVolunteers Int      @default(1) @map("required_volunteers")
+  startDate          DateTime @map("start_date")
+  endDate            DateTime @map("end_date")
+  status             OpportunityStatus @default(DRAFT)
+  imageUrl           String?  @map("image_url")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  applications Application[]
+  certificates Certificate[]
+
+  @@index([status])
+  @@index([category])
+  @@index([location])
+  @@map("opportunities")
+}
+
+model Application {
+  id            String            @id @default(uuid()) @db.Uuid
+  opportunityId String            @map("opportunity_id") @db.Uuid
+  volunteerId   String            @map("volunteer_id") @db.Uuid
+  status        ApplicationStatus @default(PENDING)
+  message       String?
+  appliedAt     DateTime          @default(now()) @map("applied_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+  respondedAt   DateTime?         @map("responded_at")
+  responseNote  String?           @map("response_note")
+
+  // Relations
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  volunteer   Volunteer   @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  hoursLogs   HoursLog[]
+
+  @@unique([opportunityId, volunteerId])
+  @@index([status])
+  @@map("applications")
+}
+
+// ==================== HOURS & ATTENDANCE ====================
+
+model HoursLog {
+  id              String    @id @default(uuid()) @db.Uuid
+  applicationId   String    @map("application_id") @db.Uuid
+  checkInTime     DateTime  @map("check_in_time")
+  checkOutTime    DateTime? @map("check_out_time")
+  totalHours      Float?    @map("total_hours")
+  source          HoursSource @default(MANUAL)
+  qrToken         String?   @map("qr_token")
+  approvedByOrg   Boolean   @default(false) @map("approved_by_org")
+  approvedAt      DateTime? @map("approved_at")
+  approvedById    String?   @map("approved_by_id") @db.Uuid
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relations
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@map("hours_logs")
+}
+
+// ==================== GAMIFICATION ====================
+
+model Badge {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  description  String
+  icon         String
+  criteriaType CriteriaType @map("criteria_type")
+  threshold    Float
+  color        String   @default("#4F46E5")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  // Relations
+  earnedBadges EarnedBadge[]
+
+  @@map("badges")
+}
+
+model EarnedBadge {
+  id          String   @id @default(uuid()) @db.Uuid
+  badgeId     String   @map("badge_id") @db.Uuid
+  volunteerId String   @map("volunteer_id") @db.Uuid
+  earnedAt    DateTime @default(now()) @map("earned_at")
+  reason      String?
+
+  // Relations
+  badge     Badge     @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  volunteer Volunteer @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+
+  @@unique([badgeId, volunteerId])
+  @@map("earned_badges")
+}
+
+// ==================== CERTIFICATES ====================
+
+model Certificate {
+  id               String   @id @default(uuid()) @db.Uuid
+  volunteerId      String   @map("volunteer_id") @db.Uuid
+  opportunityId    String   @map("opportunity_id") @db.Uuid
+  issuedAt         DateTime @default(now()) @map("issued_at")
+  hours            Float
+  pdfUrl           String?  @map("pdf_url")
+  certificateHash  String   @unique @map("certificate_hash")
+  isRevoked        Boolean  @default(false) @map("is_revoked")
+  revokedAt        DateTime? @map("revoked_at")
+  revokeReason     String?  @map("revoke_reason")
+
+  // Relations
+  volunteer   Volunteer   @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@map("certificates")
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  type      NotificationType
+  title     String
+  message   String
+  data      Json?    // Additional data as JSON
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+  readAt    DateTime? @map("read_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+// ==================== SESSIONS ====================
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  userAgent String?  @map("user_agent")
+  ipAddress String?  @map("ip_address")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  VOLUNTEER
+  ORGANIZATION
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum OrgType {
+  NON_PROFIT
+  GOVERNMENT
+  PRIVATE
+  EDUCATIONAL
+  HEALTHCARE
+  OTHER
+}
+
+enum VerificationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum OpportunityStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  CANCELLED
+  COMPLETED
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+  COMPLETED
+}
+
+enum HoursSource {
+  QR
+  MANUAL
+  AUTO
+}
+
+enum CriteriaType {
+  TOTAL_HOURS
+  COMPLETED_OPPORTUNITIES
+  SPECIFIC_CATEGORY
+  STREAK_DAYS
+  SPECIAL_ACHIEVEMENT
+}
+
+enum NotificationType {
+  APPLICATION_STATUS
+  OPPORTUNITY_REMINDER
+  HOURS_APPROVED
+  BADGE_EARNED
+  CERTIFICATE_ISSUED
+  OPPORTUNITY_CREATED
+  SYSTEM_ANNOUNCEMENT
+}

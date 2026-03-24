@@ -1,0 +1,33 @@
+services:
+  # Backend Service
+  - type: web
+    name: ataa-backend
+    env: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npm run generate && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_URL
+        sync: false # User needs to provide this
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 10000
+
+  # Frontend Service
+  - type: static
+    name: ataa-frontend
+    env: static
+    plan: free
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: ataa-backend
+          type: web
+          property: host

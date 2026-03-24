@@ -130,6 +130,7 @@ model Application {
 model HoursLog {
   id              String    @id @default(uuid()) @db.Uuid
   applicationId   String    @map("application_id") @db.Uuid
+  volunteerId     String    @map("volunteer_id") @db.Uuid
   checkInTime     DateTime  @map("check_in_time")
   checkOutTime    DateTime? @map("check_out_time")
   totalHours      Float?    @map("total_hours")
@@ -143,6 +144,7 @@ model HoursLog {
 
   // Relations
   application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  volunteer   Volunteer   @relation(fields: [volunteerId], references: [id], onDelete: Cascade)
 
   @@map("hours_logs")
 }

@@ -10,6 +10,7 @@
     "migrate": "prisma migrate dev",
     "migrate:prod": "prisma migrate deploy",
     "generate": "prisma generate",
+    "render-build": "npm install && prisma generate && npm run build",
     "seed": "ts-node prisma/seed.ts",
     "studio": "prisma studio"
   },
